@@ -33,27 +33,6 @@
         ],
         "defaultValue": "0"
       },
-      "Email Service": {
-        "type": "string",
-        "allowedValues": [
-          "Mailgun",
-          "Gmail",
-          "SendGrid"
-        ],
-        "defaultValue": "Mailgun"
-      },
-      "Email Username": {
-        "type": "string",
-        "defaultValue": ""
-      },
-      "Email Password": {
-        "type": "string",
-        "defaultValue": ""
-      },
-      "Email From Address": {
-        "type": "string",
-        "defaultValue": ""
-      },
       "repoUrl": {
         "type": "string"
       },
@@ -92,22 +71,6 @@
               {
                 "name": "websiteUrl",
                 "value": ""
-              },
-              {
-                "name": "emailService",
-                "value": "[parameters('Email Service')]"
-              },
-              {
-                "name": "emailUsername",
-                "value": "[parameters('Email Username')]"
-              },
-              {
-                "name": "emailPassword",
-                "value": "[parameters('Email Password')]"
-              },
-              {
-                "name": "emailFromAddress",
-                "value": "[parameters('Email From Address')]"
               },
               {
                 "name": "siteName",
