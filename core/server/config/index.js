@@ -4,6 +4,7 @@ var Nconf = require('nconf'),
     debug = _debug('ghost:config'),
     localUtils = require('./utils'),
     env = process.env.NODE_ENV || 'development',
+    websiteUrl = process.env.websiteUrl,
     _private = {};
 
 _private.loadNconf = function loadNconf(options) {
@@ -35,6 +36,11 @@ _private.loadNconf = function loadNconf(options) {
     nconf.file('default-env', path.join(baseConfigPath, 'env', 'config.' + env + '.json'));
     nconf.file('defaults', path.join(baseConfigPath, 'defaults.json'));
 
+    if (!websiteUrl || websiteUrl === '' ||  websiteUrl.length === 0) {
+        websiteUrl = 'http://' + process.env.siteName + '.azurewebsites.net';
+        console.log(websiteUrl);
+    }
+
     /**
      * transform all relative paths to absolute paths
      * transform sqlite filename path for Ghost-CLI
@@ -63,6 +69,7 @@ _private.loadNconf = function loadNconf(options) {
     /**
      * values we have to set manual
      */
+    nconf.set('url',websiteUrl);
     nconf.set('env', env);
 
     // Wrap this in a check, because else nconf.get() is executed unnecessarily
