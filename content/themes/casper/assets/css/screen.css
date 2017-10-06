@@ -728,9 +728,9 @@ The first (most recent) post in the list is styled to be bigger than the others 
 
 .post-full-content img,
 .post-full-content video {
-    display: block;
+    display: inline;
     max-width: 1040px;
-    margin: 1.5em auto;
+    /* margin: 1.5em auto; */
 }
 @media (max-width: 1040px) {
     .post-full-content img,
@@ -898,14 +898,17 @@ Usage (In Ghost editor):
 
 .post-full-content h5 {
     display: block;
-    margin: 0.5em 0;
-    padding: 1em 0 1.5em;
+    /* margin: 0.5em 0;
+    padding: 1em 0 1.5em; */
+    margin: 0;
+    padding: 0;
+
     border: 0;
     color: var(--blue);
     font-family: Georgia,serif;
     font-size: 3.2rem;
     line-height: 1.35em;
-    text-align: center;
+    /* text-align: center; */
 }
 @media (min-width: 1180px) {
     .post-full-content h5 {
