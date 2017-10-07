@@ -67,35 +67,36 @@ into the {body} of the default.hbs template --}}
                 </div>
 
                 {{/author}}
-            </footer>
+            </footer>            
 
-            
-
-            {{!-- If you use Disqus comments, just uncomment this block.
-            The only thing you need to change is "test-apkdzgmqhj" - which
-            should be replaced with your own Disqus site-id. --}}
+            {{!-- If you want to use Disqus comments, go to https://disqus.com/ create a new site and remember the shortname (ex: yourdomain-com-au)
+            now go to the ghost admin then the code injection area and the following code to the footer
+            if(disqusSetup){
+                disqusSetup('yourdomain-com-au');
+            } 
+            --}}
 
             <section class="post-full-comments">
                 <div id="disqus_thread"></div>
                 <script>
+                    
                     var disqus_config = function () {
                         this.page.url = '{{url absolute="true"}}';
                         this.page.identifier = 'ghost-{{comment_id}}';
                     };
-                    (function() {
-                        if(disqus_shortname){
+                    var disqusSetup = function(disqusShortname) {                        
                             var d = document, s = d.createElement('script');
-                            s.src = 'https://'+process.env.disqusShortname+'.disqus.com/embed.js';
+                            s.src = 'https://' + disqusShortname + '.disqus.com/embed.js';
                             s.setAttribute('data-timestamp', +new Date());
                             (d.head || d.body).appendChild(s);
-                        }
-                    })();
+                    };
                 </script>
             </section>
            
             <section class="post-full-comments">
                 <div id="disqus_thread"></div>
             </section>
+
         </article>
 
     </div>
