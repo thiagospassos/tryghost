@@ -7,12 +7,14 @@ const debug = require('ghost-ignition').debug('importer:posts'),
     validation = require('../../../validation');
 
 class PostsImporter extends BaseImporter {
-    constructor(options) {
-        super(_.extend(options, {
+    constructor(allDataFromFile) {
+        super(allDataFromFile, {
             modelName: 'Post',
             dataKeyToImport: 'posts',
-            requiredData: ['tags', 'posts_tags']
-        }));
+            requiredFromFile: ['posts', 'tags', 'posts_tags', 'posts_authors'],
+            requiredImportedData: ['tags'],
+            requiredExistingData: ['tags']
+        });
 
         this.legacyKeys = {
             image: 'feature_image'
@@ -20,7 +22,7 @@ class PostsImporter extends BaseImporter {
     }
 
     sanitizeAttributes() {
-        _.each(this.dataToImport, function (obj) {
+        _.each(this.dataToImport, (obj) => {
             if (!validation.validator.isUUID(obj.uuid || '')) {
                 obj.uuid = uuid.v4();
             }
@@ -28,96 +30,120 @@ class PostsImporter extends BaseImporter {
     }
 
     /**
-     * We don't have to worry about existing tag id's.
-     * e.g. you import a tag, which exists (doesn't get imported)
-     * ...because we add tags by unique name.
+     * Naive function to attach related tags and authors.
      */
-    addTagsToPosts() {
-        let postTags = this.posts_tags,
-            postsWithTags = new Map(),
-            self = this,
-            duplicatedTagsPerPost = {},
-            tagsToAttach = [],
-            foundOriginalTag;
+    addNestedRelations() {
+        this.requiredFromFile.posts_tags = _.orderBy(this.requiredFromFile.posts_tags, ['post_id', 'sort_order'], ['asc', 'asc']);
+        this.requiredFromFile.posts_authors = _.orderBy(this.requiredFromFile.posts_authors, ['post_id', 'sort_order'], ['asc', 'asc']);
 
-        postTags = _.orderBy(postTags, ['post_id', 'sort_order'], ['asc', 'asc']);
-
-        _.each(postTags, function (postTag) {
-            if (!postsWithTags.get(postTag.post_id)) {
-                postsWithTags.set(postTag.post_id, []);
-            }
-
-            if (postsWithTags.get(postTag.post_id).indexOf(postTag.tag_id) !== -1) {
-                if (!duplicatedTagsPerPost.hasOwnProperty(postTag.post_id)) {
-                    duplicatedTagsPerPost[postTag.post_id] = [];
-                }
-
-                duplicatedTagsPerPost[postTag.post_id].push(postTag.tag_id);
-            }
-
-            postsWithTags.get(postTag.post_id).push(postTag.tag_id);
-        });
-
-        postsWithTags.forEach(function (tagIds, postId) {
-            tagsToAttach = [];
-
-            _.each(tagIds, function (tagId) {
-                foundOriginalTag = _.find(self.tags, {id: tagId});
-
-                if (!foundOriginalTag) {
+        /**
+         * from {post_id: 1, tag_id: 2} to post.tags=[{id:id}]
+         * from {post_id: 1, author_id: 2} post.authors=[{id:id}]
+         */
+        const run = (relations, target, fk) => {
+            _.each(relations, (relation) => {
+                if (!relation.post_id) {
                     return;
                 }
 
-                tagsToAttach.push(foundOriginalTag);
+                let postToImport = _.find(this.dataToImport, {id: relation.post_id});
+
+                // CASE: we won't import a relation when the target post does not exist
+                if (!postToImport) {
+                    return;
+                }
+
+                if (!postToImport[target] || !_.isArray(postToImport[target])) {
+                    postToImport[target] = [];
+                }
+
+                // CASE: detect duplicate relations
+                if (!_.find(postToImport[target], {id: relation[fk]})) {
+                    postToImport[target].push({
+                        id: relation[fk]
+                    });
+                }
             });
+        };
 
-            _.each(tagsToAttach, function (tag) {
-                _.each(self.dataToImport, function (obj) {
-                    if (obj.id === postId) {
-                        if (!_.isArray(obj.tags)) {
-                            obj.tags = [];
-                        }
+        run(this.requiredFromFile.posts_tags, 'tags', 'tag_id');
+        run(this.requiredFromFile.posts_authors, 'authors', 'author_id');
+    }
 
-                        if (duplicatedTagsPerPost.hasOwnProperty(postId) && duplicatedTagsPerPost[postId].length) {
-                            self.problems.push({
-                                message: 'Detected duplicated tags for: ' + obj.title || obj.slug,
-                                help: self.modelName,
-                                context: JSON.stringify({
-                                    tags: _.map(_.filter(self.tags, function (tag) {
-                                        return _.indexOf(duplicatedTagsPerPost[postId], tag.id) !== -1;
-                                    }), function (value) {
-                                        return value.slug || value.name;
-                                    })
-                                })
-                            });
-                        }
+    /**
+     * Replace all identifier references.
+     */
+    replaceIdentifiers() {
+        const run = (postToImport, postIndex, targetProperty, tableName) => {
+            if (!postToImport[targetProperty] || !postToImport[targetProperty].length) {
+                return;
+            }
 
-                        obj.tags.push({
-                            name: tag.name
-                        });
+            let indexesToRemove = [];
+            _.each(postToImport[targetProperty], (object, index) => {
+                let objectInFile = _.find(this.requiredFromFile[tableName], {id: object.id});
+
+                if (!objectInFile) {
+                    let existingObject = _.find(this.requiredExistingData[tableName], {id: object.id});
+
+                    // CASE: is not in file, is not in db
+                    if (!existingObject) {
+                        indexesToRemove.push(index);
+                        return;
+                    } else {
+                        this.dataToImport[postIndex][targetProperty][index].id = existingObject.id;
+                        return;
                     }
-                });
+                }
+
+                // CASE: search through imported data
+                let importedObject = _.find(this.requiredImportedData[tableName], {slug: objectInFile.slug});
+
+                if (importedObject) {
+                    this.dataToImport[postIndex][targetProperty][index].id = importedObject.id;
+                    return;
+                }
+
+                // CASE: search through existing data
+                let existingObject = _.find(this.requiredExistingData[tableName], {slug: objectInFile.slug});
+
+                if (existingObject) {
+                    this.dataToImport[postIndex][targetProperty][index].id = existingObject.id;
+                } else {
+                    indexesToRemove.push(index);
+                }
             });
+
+            this.dataToImport[postIndex][targetProperty] = _.filter(this.dataToImport[postIndex][targetProperty], ((object, index) => {
+                return indexesToRemove.indexOf(index) === -1;
+            }));
+        };
+
+        _.each(this.dataToImport, (postToImport, postIndex) => {
+            run(postToImport, postIndex, 'tags', 'tags');
+            run(postToImport, postIndex, 'authors', 'users');
         });
+
+        return super.replaceIdentifiers();
     }
 
     beforeImport() {
         debug('beforeImport');
-        let mobileDocContent, self = this;
+        let mobileDocContent;
 
         this.sanitizeAttributes();
-        this.addTagsToPosts();
+        this.addNestedRelations();
 
         // Remove legacy field language
-        this.dataToImport = _.filter(this.dataToImport, function (data) {
+        this.dataToImport = _.filter(this.dataToImport, (data) => {
             return _.omit(data, 'language');
         });
 
-        this.dataToImport = this.dataToImport.map(self.legacyMapper);
+        this.dataToImport = this.dataToImport.map(this.legacyMapper);
 
         // For legacy imports/custom imports with only html we can parse the markdown or html into a mobile doc card
         // For now we can hardcode the version
-        _.each(this.dataToImport, function (model) {
+        _.each(this.dataToImport, (model) => {
             if (!model.mobiledoc) {
                 if (model.markdown && model.markdown.length > 0) {
                     mobileDocContent = model.markdown;
@@ -132,8 +158,8 @@ class PostsImporter extends BaseImporter {
                         version: '0.3.1',
                         markups: [],
                         atoms: [],
-                        cards: [['card-markdown',{cardName: 'card-markdown',markdown: mobileDocContent}]],
-                        sections:[[10,0]]
+                        cards: [['card-markdown', {cardName: 'card-markdown', markdown: mobileDocContent}]],
+                        sections: [[10, 0]]
                     });
                 }
             }
@@ -147,12 +173,32 @@ class PostsImporter extends BaseImporter {
             }
         });
 
+        // NOTE: We only support removing duplicate posts within the file to import.
+        // For any further future duplication detection, see https://github.com/TryGhost/Ghost/issues/8717.
+        let slugs = [];
+        this.dataToImport = _.filter(this.dataToImport, (post) => {
+            if (slugs.indexOf(post.slug) !== -1) {
+                this.problems.push({
+                    message: 'Entry was not imported and ignored. Detected duplicated entry.',
+                    help: this.modelName,
+                    context: JSON.stringify({
+                        post: post
+                    })
+                });
+
+                return false;
+            }
+
+            slugs.push(post.slug);
+            return true;
+        });
+
         // NOTE: do after, because model properties are deleted e.g. post.id
         return super.beforeImport();
     }
 
-    doImport(options) {
-        return super.doImport(options);
+    doImport(options, importOptions) {
+        return super.doImport(options, importOptions);
     }
 }
 

@@ -1,5 +1,5 @@
 # [TryGhost](https://github.com/TryGhost/Ghost) tweaked to work on Azure Web App
-I've used the version 1.10 downloaded from https://ghost.org/developers/ as a baseline for this project.
+I've used the version ~~1.10~~ 1.22.1 downloaded from https://ghost.org/developers/ as a baseline for this project.
 You can either create your web app in the [Azure Portal](https://portal.azure.com) and configure continuous deployment to this repository or use this shiny button to deploy straight to your Azure subscription  
 
 [![Deploy to Azure](https://azuredeploy.net/deploybutton.png)](https://azuredeploy.net/)  
@@ -36,4 +36,4 @@ New releases are announced on the [dev blog](http://dev.ghost.org/tag/releases/)
 
 # Copyright & License
 
-Copyright (c) 2013-2017 Ghost Foundation - Released under the [MIT license](LICENSE). Ghost and the Ghost Logo are trademarks of Ghost Foundation Ltd. Please see our [trademark policy](https://ghost.org/trademark/) for info on acceptable usage.
+Copyright (c) 2013-2018 Ghost Foundation - Released under the [MIT license](LICENSE). Ghost and the Ghost Logo are trademarks of Ghost Foundation Ltd. Please see our [trademark policy](https://ghost.org/trademark/) for info on acceptable usage.

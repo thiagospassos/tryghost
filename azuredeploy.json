@@ -78,7 +78,7 @@
               },
               {
                 "name": "WEBSITE_NODE_DEFAULT_VERSION",
-                "value": "6.10.2"
+                "value": "8.9.0"
               }
             ]
           }

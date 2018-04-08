@@ -3,15 +3,15 @@
 const debug = require('ghost-ignition').debug('importer:users'),
     _ = require('lodash'),
     BaseImporter = require('./base'),
-    globalUtils = require('../../../../utils');
+    models = require('../../../../models');
 
 class UsersImporter extends BaseImporter {
-    constructor(options) {
-        super(_.extend(options, {
+    constructor(allDataFromFile) {
+        super(allDataFromFile, {
             modelName: 'User',
             dataKeyToImport: 'users',
-            requiredData: ['roles', 'roles_users']
-        }));
+            requiredFromFile: ['roles', 'roles_users']
+        });
 
         // Map legacy keys
         this.legacyKeys = {
@@ -19,6 +19,13 @@ class UsersImporter extends BaseImporter {
             cover: 'cover_image',
             last_login: 'last_seen'
         };
+    }
+
+    fetchExisting(modelOptions) {
+        return models.User.findAll(_.merge({columns: ['id', 'slug', 'email'], withRelated: ['roles']}, modelOptions))
+            .then((existingData) => {
+                this.existingData = existingData.toJSON();
+            });
     }
 
     /**
@@ -29,29 +36,20 @@ class UsersImporter extends BaseImporter {
      *
      *   If importOptions object is supplied with a property of importPersistUser then the user status is not locked
      */
-    beforeImport(importOptions) {
+    beforeImport() {
         debug('beforeImport');
 
-        let self = this, role, lookup = {};
+        let role, lookup = {};
 
         // Remove legacy field language
-        this.dataToImport = _.filter(this.dataToImport, function (data) {
+        this.dataToImport = _.filter(this.dataToImport, (data) => {
             return _.omit(data, 'language');
         });
 
-        this.dataToImport = this.dataToImport.map(self.legacyMapper);
-
-        if (importOptions.importPersistUser !== true) {
-            _.each(this.dataToImport, function (model) {
-                model.password = globalUtils.uid(50);
-                if (model.status !== 'inactive') {
-                    model.status = 'locked';
-                }
-            });
-        }
+        this.dataToImport = this.dataToImport.map(this.legacyMapper);
 
         // NOTE: sort out duplicated roles based on incremental id
-        _.each(this.roles_users, function (attachedRole) {
+        _.each(this.requiredFromFile.roles_users, (attachedRole) => {
             if (lookup.hasOwnProperty(attachedRole.user_id)) {
                 if (lookup[attachedRole.user_id].id < attachedRole.id) {
                     lookup[attachedRole.user_id] = attachedRole;
@@ -61,10 +59,10 @@ class UsersImporter extends BaseImporter {
             }
         });
 
-        this.roles_users = _.toArray(lookup);
+        this.requiredFromFile.roles_users = _.toArray(lookup);
 
-        _.each(this.roles_users, function (attachedRole) {
-            role = _.find(self.roles, function (role) {
+        _.each(this.requiredFromFile.roles_users, (attachedRole) => {
+            role = _.find(this.requiredFromFile.roles, (role) => {
                 if (attachedRole.role_id === role.id) {
                     return role;
                 }
@@ -75,7 +73,7 @@ class UsersImporter extends BaseImporter {
                 role = {name: 'Author'};
             }
 
-            _.each(self.dataToImport, function (obj) {
+            _.each(this.dataToImport, (obj) => {
                 if (attachedRole.user_id === obj.id) {
                     if (!_.isArray(obj.roles)) {
                         obj.roles = [];
@@ -95,8 +93,8 @@ class UsersImporter extends BaseImporter {
         return super.beforeImport();
     }
 
-    doImport(options) {
-        return super.doImport(options);
+    doImport(options, importOptions) {
+        return super.doImport(options, importOptions);
     }
 }
 

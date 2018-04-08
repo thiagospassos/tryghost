@@ -1,6 +1,6 @@
-var _      = require('lodash'),
-    api    = require('../../../api'),
-    utils  = require('../../../utils'),
+var _ = require('lodash'),
+    api = require('../../../api'),
+    urlService = require('../../../services/url'),
     BaseMapGenerator = require('./base-generator');
 
 // A class responsible for generating a sitemap from posts and keeping it updated
@@ -31,7 +31,11 @@ _.extend(PostMapGenerator.prototype, {
             status: 'published',
             staticPages: false,
             limit: 'all',
-            include: 'author'
+            /**
+             * Is required for permalinks e.g. `/:author/:slug/`.
+             * @deprecated: `author`, will be removed in Ghost 2.0
+             */
+            include: 'author,tags'
         }).then(function (resp) {
             return resp.posts;
         });
@@ -42,7 +46,7 @@ _.extend(PostMapGenerator.prototype, {
     },
 
     getUrlForDatum: function (post) {
-        return utils.url.urlFor('post', {post: post}, true);
+        return urlService.utils.urlFor('post', {post: post}, true);
     },
 
     getPriorityForDatum: function (post) {

@@ -1,5 +1,5 @@
 var config = require('./core/server/config'),
-    ghostVersion = require('./core/server/utils/ghost-version');
+  ghostVersion = require('./core/server/lib/ghost-version');
 
 /**
  * knex-migrator can be used via CLI or within the application
@@ -8,7 +8,16 @@ var config = require('./core/server/config'),
 require('./core/server/overrides');
 
 module.exports = {
-    currentVersion: ghostVersion.safe,
-    database: config.get('database'),
-    migrationPath: config.get('paths:migrationPath')
+  currentVersion: ghostVersion.safe,
+  database: {
+    client: 'sqlite3',
+    connection: {
+      filename: 'content/data/ghost-dev.db'
+    },
+    debug: false
+  },
+  paths: {
+    contentPath: 'content'
+  },
+  migrationPath: config.get('paths:migrationPath')
 };

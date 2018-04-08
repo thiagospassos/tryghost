@@ -3,7 +3,7 @@ var _          = require('lodash'),
     url        = require('url'),
     routeMatch = require('path-match')(),
     api        = require('../../api'),
-    settingsCache = require('../../settings/cache'),
+    settingsCache = require('../../services/settings/cache'),
     optionsFormat = '/:options?';
 
 function getOptionsFormat(linkStructure) {
@@ -40,8 +40,12 @@ function postLookup(postUrl) {
         isEditURL = true;
     }
 
-    // Query database to find post
-    return api.posts.read(_.extend(_.pick(params, 'slug', 'id'), {include: 'author,tags'})).then(function then(result) {
+    /**
+     * Query database to find post.
+     *
+     * @deprecated: `author`, will be removed in Ghost 2.0
+     */
+    return api.posts.read(_.extend(_.pick(params, 'slug', 'id'), {include: 'author,authors,tags'})).then(function then(result) {
         var post = result.posts[0];
 
         if (!post) {

@@ -1,7 +1,7 @@
 var moment = require('moment-timezone'),
     Promise = require('bluebird'),
     _ = require('lodash'),
-    errors = require('../../errors');
+    common = require('../../lib/common');
 
 module.exports = function (Bookshelf) {
     var ParentModel = Bookshelf.Model,
@@ -55,9 +55,16 @@ module.exports = function (Bookshelf) {
 
                 if (Object.keys(changed).length) {
                     if (clientUpdatedAt.diff(serverUpdatedAt) !== 0) {
-                        return Promise.reject(new errors.UpdateCollisionError({
+                        // @TODO: Remove later. We want to figure out how many people experience the error in which context.
+                        return Promise.reject(new common.errors.UpdateCollisionError({
                             message: 'Saving failed! Someone else is editing this post.',
-                            code: 'UPDATE_COLLISION'
+                            code: 'UPDATE_COLLISION',
+                            level: 'critical',
+                            context: JSON.stringify({
+                                clientUpdatedAt: self.clientData.updated_at,
+                                serverUpdatedAt: self.serverData.updated_at,
+                                changed: changed
+                            })
                         }));
                     }
                 }

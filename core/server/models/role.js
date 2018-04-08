@@ -1,8 +1,7 @@
-var _              = require('lodash'),
-    errors         = require('../errors'),
+var _ = require('lodash'),
     ghostBookshelf = require('./base'),
-    Promise        = require('bluebird'),
-    i18n           = require('../i18n'),
+    Promise = require('bluebird'),
+    common = require('../lib/common'),
 
     Role,
     Roles;
@@ -20,10 +19,10 @@ Role = ghostBookshelf.Model.extend({
     }
 }, {
     /**
-    * Returns an array of keys permitted in a method's `options` hash, depending on the current method.
-    * @param {String} methodName The name of the method to check valid options for.
-    * @return {Array} Keys allowed in the `options` hash of the model's method.
-    */
+     * Returns an array of keys permitted in a method's `options` hash, depending on the current method.
+     * @param {String} methodName The name of the method to check valid options for.
+     * @return {Array} Keys allowed in the `options` hash of the model's method.
+     */
     permittedOptions: function permittedOptions(methodName) {
         var options = ghostBookshelf.Model.permittedOptions(),
 
@@ -53,21 +52,28 @@ Role = ghostBookshelf.Model.extend({
             origArgs = _.toArray(arguments).slice(1);
 
             // Get the actual role model
-            return this.findOne({id: roleModelOrId, status: 'all'}).then(function then(foundRoleModel) {
-                // Build up the original args but substitute with actual model
-                var newArgs = [foundRoleModel].concat(origArgs);
+            return this.findOne({id: roleModelOrId, status: 'all'})
+                .then(function then(foundRoleModel) {
+                    if (!foundRoleModel) {
+                        throw new common.errors.NotFoundError({
+                            message: common.i18n.t('errors.models.role.roleNotFound')
+                        });
+                    }
 
-                return self.permissible.apply(self, newArgs);
-            });
+                    // Build up the original args but substitute with actual model
+                    var newArgs = [foundRoleModel].concat(origArgs);
+
+                    return self.permissible.apply(self, newArgs);
+                });
         }
 
         if (action === 'assign' && loadedPermissions.user) {
             if (_.some(loadedPermissions.user.roles, {name: 'Owner'})) {
-                checkAgainst = ['Owner', 'Administrator', 'Editor', 'Author'];
+                checkAgainst = ['Owner', 'Administrator', 'Editor', 'Author', 'Contributor'];
             } else if (_.some(loadedPermissions.user.roles, {name: 'Administrator'})) {
-                checkAgainst = ['Administrator', 'Editor', 'Author'];
+                checkAgainst = ['Administrator', 'Editor', 'Author', 'Contributor'];
             } else if (_.some(loadedPermissions.user.roles, {name: 'Editor'})) {
-                checkAgainst = ['Author'];
+                checkAgainst = ['Author', 'Contributor'];
             }
 
             // Role in the list of permissible roles
@@ -78,7 +84,7 @@ Role = ghostBookshelf.Model.extend({
             return Promise.resolve();
         }
 
-        return Promise.reject(new errors.NoPermissionError({message: i18n.t('errors.models.role.notEnoughPermission')}));
+        return Promise.reject(new common.errors.NoPermissionError({message: common.i18n.t('errors.models.role.notEnoughPermission')}));
     }
 });
 

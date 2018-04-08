@@ -1,7 +1,6 @@
-var _      = require('lodash'),
-    errors = require('../../errors'),
-    gql    = require('ghost-gql'),
-    i18n   = require('../../i18n'),
+var _ = require('lodash'),
+    gql = require('ghost-gql'),
+    common = require('../../lib/common'),
     filter,
     filterUtils;
 
@@ -25,11 +24,11 @@ filterUtils = {
                 return _.isString(arg) ? gql.parse(arg) : arg;
             });
         } catch (err) {
-            throw new errors.ValidationError({
+            throw new common.errors.ValidationError({
                 err: err,
                 property: 'filter',
-                context: i18n.t('errors.models.plugins.filter.errorParsing'),
-                help: i18n.t('errors.models.plugins.filter.forInformationRead', {url: 'http://api.ghost.org/docs/filter'})
+                context: common.i18n.t('errors.models.plugins.filter.errorParsing'),
+                help: common.i18n.t('errors.models.plugins.filter.forInformationRead', {url: 'http://api.ghost.org/docs/filter'})
             });
         }
 
@@ -80,8 +79,34 @@ filter = function filter(Bookshelf) {
         // Cached copy of the filters setup for this model instance
         _filters: null,
         // Override these on the various models
-        enforcedFilters: function enforcedFilters() {},
-        defaultFilters: function defaultFilters() {},
+        enforcedFilters: function enforcedFilters() {
+        },
+        defaultFilters: function defaultFilters() {
+        },
+
+        preProcessFilters: function preProcessFilters() {
+            this._filters.statements = gql.json.replaceStatements(this._filters.statements, {prop: /primary_tag/}, function (statement) {
+                statement.prop = 'tags.slug';
+                return {
+                    group: [
+                        statement,
+                        {prop: 'posts_tags.sort_order', op: '=', value: 0},
+                        {prop: 'tags.visibility', op: '=', value: 'public'}
+                    ]
+                };
+            });
+
+            this._filters.statements = gql.json.replaceStatements(this._filters.statements, {prop: /primary_author/}, function (statement) {
+                statement.prop = 'authors.slug';
+                return {
+                    group: [
+                        statement,
+                        {prop: 'posts_authors.sort_order', op: '=', value: 0},
+                        {prop: 'authors.visibility', op: '=', value: 'public'}
+                    ]
+                };
+            });
+        },
 
         /**
          * ## Post process Filters
@@ -114,6 +139,31 @@ filter = function filter(Bookshelf) {
                 options.groups.push('posts.id');
             }
 
+            if (joinTables && joinTables.indexOf('authors') > -1) {
+                // We need to use leftOuterJoin to insure we still include posts which don't have tags in the result
+                // The where clause should restrict which items are returned
+                this
+                    .query('leftOuterJoin', 'posts_authors', 'posts_authors.post_id', '=', 'posts.id')
+                    .query('leftOuterJoin', 'users as authors', 'posts_authors.author_id', '=', 'authors.id');
+
+                // The order override should ONLY happen if we are doing an "IN" query
+                // TODO move the order handling to the query building that is currently inside pagination
+                // TODO make the order handling in pagination handle orderByRaw
+                // TODO extend this handling to all joins
+                if (gql.json.findStatement(this._filters.statements, {prop: /^authors/, op: 'IN'})) {
+                    // TODO make this count the number of MATCHING authors, not just the number of authors
+                    this.query('orderByRaw', 'count(authors.id) DESC');
+                }
+
+                // We need to add a group by to counter the double left outer join
+                // TODO improve on the group by handling
+                options.groups = options.groups || [];
+                options.groups.push('posts.id');
+            }
+
+            /**
+             * @deprecated: `author`, will be removed in Ghost 2.0
+             */
             if (joinTables && joinTables.indexOf('author') > -1) {
                 this
                     .query('join', 'users as author', 'author.id', '=', 'posts.author_id');
@@ -131,8 +181,8 @@ filter = function filter(Bookshelf) {
             options = options || {};
 
             this._filters = filterUtils.combineFilters(
-                this.enforcedFilters(),
-                this.defaultFilters(),
+                this.enforcedFilters(options),
+                this.defaultFilters(options),
                 options.filter,
                 options.where
             );
@@ -159,6 +209,8 @@ filter = function filter(Bookshelf) {
                 if (this.debug) {
                     gql.json.printStatements(this._filters.statements);
                 }
+
+                this.preProcessFilters(options);
 
                 this.query(function (qb) {
                     gql.knexify(qb, self._filters);

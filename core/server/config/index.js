@@ -69,7 +69,7 @@ _private.loadNconf = function loadNconf(options) {
     /**
      * values we have to set manual
      */
-    nconf.set('url',websiteUrl);
+    nconf.set('url', websiteUrl);
     nconf.set('env', env);
 
     // Wrap this in a check, because else nconf.get() is executed unnecessarily
